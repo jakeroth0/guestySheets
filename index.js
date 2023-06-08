@@ -30,109 +30,56 @@ require('dotenv').config();
 //     }
 //   });
   
-const getListingNicknames = async () => {
-    let nicknames = {};
+const getReservationDetails = async () => {
+    let reservationDetails = {};
     const limit = 100;
     let skip = 0;
 
-     // Authenticate before making a request
-sdk.auth('Bearer my token');
+        // Authenticate before making a request
+    sdk.auth('Bearer mytoken');
 
-while (true) {
-    const response = await sdk.getListings({
-        fields: '_id nickname',
-        limit: limit.toString(),
-        skip: skip.toString()
-    });
+    while (true) {
+        const response = await sdk.getReservations({
+            fields: '_id%20listing.nickname%20checkIn%20checkOut%20confirmationCode%20money.fareAccommodation%20money.fareCleaning%20createdAt',
+            limit: limit.toString(),
+            skip: skip.toString()
+        });
 
-    for (let listing of response.data.results) {
-        nicknames[listing._id] = listing.nickname; 
-    }
-
-    // If the number of results is less than the limit, break the loop
-    if (response.data.results.length < limit) {
-        break;
-    }
-
-    skip += limit;
-
-    // Delay the next request
-    await new Promise(resolve => setTimeout(resolve, 100));
-}
-
-return nicknames;
-}
-
-const fetchReservations = async () => {
-    const listingNicknames = await getListingNicknames();
-    const reservations = [];
-  
-    const batchSize = 100;
-    const delayMs = 100;
-  
-    let skip = 0;
-    let hasMoreReservations = true;
-  
-    while (hasMoreReservations) {
-      // Fetch a batch of reservations
-      const response = await sdk.getReservations({
-        limit: batchSize.toString(),
-        skip: skip.toString(),
-      });
-  
-      for (let reservation of response.data.results) {
-        const { listingId } = reservation;
-  
-        if (listingId in listingNicknames) {
-          const formattedReservation = {
-            listingId: reservation.listingId,
-            checkIn: reservation.checkIn,
-            checkOut: reservation.checkOut,
-            nickname: listingNicknames[listingId],
-            // Add other necessary properties for the reservation
-          };
-  
-          reservations.push(formattedReservation);
-        } else {
-          // Handle case when listingId doesn't exist in the map
-          console.log(`Listing ID ${listingId} not found in the listings endpoint. Skipping reservation.`);
+        for (let reservation of response.data.results) {
+            reservationDetails[reservation._id] = {
+                checkIn: reservation.checkIn,
+                checkOut: reservation.checkOut,
+                confirmationCode: reservation.confirmationCode,
+                createdAt: reservation.createdAt,
+                fareAccommodation: reservation.money.fareAccommodation,
+                fareCleaning: reservation.money.fareCleaning,
+                nickname: reservation.listing.nickname
+            };
         }
-      }
-  
-      // Check if there are more reservations
-      hasMoreReservations = response.data.results.length === batchSize;
-  
-      // Increment skip for the next batch
-      skip += batchSize;
-  
-      // Delay between batches to limit the rate of requests
-      if (hasMoreReservations) {
-        await new Promise(resolve => setTimeout(resolve, delayMs));
-      }
+
+        // If the number of results is less than the limit, break the loop
+        if (response.data.results.length < limit) {
+            break;
+        }
+
+        skip += limit;
+
+        // Delay the next request
+        await new Promise(resolve => setTimeout(resolve, 750));
     }
-  
-    return reservations;
-  };  
+
+    return reservationDetails;
+}
     
-    app.get("/nicknames", (req, res) => {
-      getListingNicknames()
+    app.get("/reservationDetails", (req, res) => {
+      getReservationDetails()
         .then(data => res.send(data))
         .catch(err => {
           console.error(err);
           res.status(500).send(err);
         });
     });
-
-    app.get("/reservations", async (req, res) => {
-        try {
-          const reservations = await fetchReservations();
-          res.send(reservations);
-        } catch (err) {
-          console.error(err);
-          res.status(500).send(err);
-        }
-      });
-      
+   
 
 app.get("/", async (req, res) => {
     const auth = new google.auth.GoogleAuth({
