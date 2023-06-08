@@ -89,3 +89,4 @@ public/
 *.sw*
 
 token.js
+credentials.json
