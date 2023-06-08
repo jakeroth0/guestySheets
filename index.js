@@ -62,6 +62,57 @@ while (true) {
 
 return nicknames;
 }
+
+const fetchReservations = async () => {
+    const listingNicknames = await getListingNicknames();
+    const reservations = [];
+  
+    const batchSize = 100;
+    const delayMs = 100;
+  
+    let skip = 0;
+    let hasMoreReservations = true;
+  
+    while (hasMoreReservations) {
+      // Fetch a batch of reservations
+      const response = await sdk.getReservations({
+        limit: batchSize.toString(),
+        skip: skip.toString(),
+      });
+  
+      for (let reservation of response.data.results) {
+        const { listingId } = reservation;
+  
+        if (listingId in listingNicknames) {
+          const formattedReservation = {
+            listingId: reservation.listingId,
+            checkIn: reservation.checkIn,
+            checkOut: reservation.checkOut,
+            nickname: listingNicknames[listingId],
+            // Add other necessary properties for the reservation
+          };
+  
+          reservations.push(formattedReservation);
+        } else {
+          // Handle case when listingId doesn't exist in the map
+          console.log(`Listing ID ${listingId} not found in the listings endpoint. Skipping reservation.`);
+        }
+      }
+  
+      // Check if there are more reservations
+      hasMoreReservations = response.data.results.length === batchSize;
+  
+      // Increment skip for the next batch
+      skip += batchSize;
+  
+      // Delay between batches to limit the rate of requests
+      if (hasMoreReservations) {
+        await new Promise(resolve => setTimeout(resolve, delayMs));
+      }
+    }
+  
+    return reservations;
+  };  
     
     app.get("/nicknames", (req, res) => {
       getListingNicknames()
@@ -71,6 +122,17 @@ return nicknames;
           res.status(500).send(err);
         });
     });
+
+    app.get("/reservations", async (req, res) => {
+        try {
+          const reservations = await fetchReservations();
+          res.send(reservations);
+        } catch (err) {
+          console.error(err);
+          res.status(500).send(err);
+        }
+      });
+      
 
 app.get("/", async (req, res) => {
     const auth = new google.auth.GoogleAuth({
