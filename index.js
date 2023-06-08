@@ -1,5 +1,6 @@
 const express = require("express");
 const { google } = require("googleapis");
+const sdk = require('api')('@open-api-docs/v1.0#4y6wbk20lik15p2x');
 
 const app = express();
 
@@ -29,7 +30,47 @@ require('dotenv').config();
 //     }
 //   });
   
+const getListingNicknames = async () => {
+    let nicknames = {};
+    const limit = 100;
+    let skip = 0;
 
+     // Authenticate before making a request
+sdk.auth('Bearer my token');
+
+while (true) {
+    const response = await sdk.getListings({
+        fields: '_id nickname',
+        limit: limit.toString(),
+        skip: skip.toString()
+    });
+
+    for (let listing of response.data.results) {
+        nicknames[listing._id] = listing.nickname; 
+    }
+
+    // If the number of results is less than the limit, break the loop
+    if (response.data.results.length < limit) {
+        break;
+    }
+
+    skip += limit;
+
+    // Delay the next request
+    await new Promise(resolve => setTimeout(resolve, 100));
+}
+
+return nicknames;
+}
+    
+    app.get("/nicknames", (req, res) => {
+      getListingNicknames()
+        .then(data => res.send(data))
+        .catch(err => {
+          console.error(err);
+          res.status(500).send(err);
+        });
+    });
 
 app.get("/", async (req, res) => {
     const auth = new google.auth.GoogleAuth({
@@ -43,13 +84,12 @@ app.get("/", async (req, res) => {
     // Instance of Google Sheets API
     const googleSheets = google.sheets({version: "v4", auth: client});
 
-    const spreadsheetId = "1uEzB4etmTrnz0yeIH4tYDwHfaAFituyROBlCzLmo_s4";
-
+    const spreadsheetId = process.env.SPREADSHEET_ID;
     // Read rows from spreadsheet
     const getRows = await googleSheets.spreadsheets.values.get({
         auth,
         spreadsheetId,
-        range: "Sheet1",
+        range: process.env.RANGE,
     });
 
     // Data to be added (assuming ID is first element)
@@ -57,7 +97,7 @@ app.get("/", async (req, res) => {
         ["ID1", "Airbnb 1", "test"], 
         ["ID2", "Manual 1", "2 test"],
         ["ID2", "Manual 1", "3 test"],
-        ["ID3", "Vrbo 1", "4 test"],
+        ["ID3", "Vrbo 1", "5 test"],
     ];
 
     // Get existing data
