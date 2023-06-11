@@ -147,6 +147,8 @@ const getReservationDetails = async () => {
     const limit = 100;
     let skip = 0;
   
+    // Authenticate before making a request
+    sdk.auth(process.env.MY_TOKEN);
     while (true) {
       const response = await sdk.getListings({
         fields: '_id', // request only the listingId
@@ -189,6 +191,8 @@ async function getCalendarData(listingIds, startDate, endDate) {
   const startDateFormat = getFormattedDate(startDate);
   const endDateFormat = getFormattedDate(endDate);
 
+  // Authenticate before making a request
+  sdk.auth(process.env.MY_TOKEN);
   try {
     const response = await sdk.getAvailabilityPricingApiCalendarListings({
       listingIds: idsString,
@@ -201,42 +205,6 @@ async function getCalendarData(listingIds, startDate, endDate) {
   }
 }
 
-// const getManualBlocksData = async () => {
-//     const allListings = await getListings();
-//     const startDate = new Date();
-//     const endDate = new Date();
-//     endDate.setMonth(endDate.getMonth() + 2);
-
-//     let allManualBlocks = [];
-
-//     for (let listingId of allListings) {
-//         let calendarData = await getCalendarData(listingId, startDate, endDate);
-//         let currentBlock = [];
-//         let manualBlocks = [];
-
-//         for (let day of calendarData.data.days) {
-//             if (day.blocks.m) {
-//                 // If the day is manually blocked, add it to the current block
-//                 currentBlock.push(day);
-//             } else if (currentBlock.length > 0) {
-//                 // If the day is not manually blocked and there is a current block, add the current block to manualBlocks
-//                 manualBlocks.push([listingId, currentBlock[0].date, currentBlock[currentBlock.length - 1].date, 'manualBlock']);
-//                 // Start a new block
-//                 currentBlock = [];
-//             }
-//         }
-
-//         // If there is a current block at the end of the days, add it to manualBlocks
-//         if (currentBlock.length > 0) {
-//             manualBlocks.push([listingId, currentBlock[0].date, currentBlock[currentBlock.length - 1].date, 'manualBlock']);
-//         }
-
-//         allManualBlocks = allManualBlocks.concat(manualBlocks);
-//     }
-
-//     return allManualBlocks;
-// };
-
 const getManualBlocksData = async () => {
     const allListings = await getListings();
     const startDate = new Date();
@@ -244,6 +212,9 @@ const getManualBlocksData = async () => {
     endDate.setMonth(endDate.getMonth() + 2);
 
     let allManualBlocks = [];
+
+    // Authenticate before making a request
+    sdk.auth(process.env.MY_TOKEN);
 
     for (let listingId of allListings) {
         let calendarData = await getCalendarData(listingId, startDate, endDate);
@@ -286,43 +257,6 @@ const getManualBlocksData = async () => {
 
     return allManualBlocks;
 };
-
-// const getManualBlocksData = async () => {
-//     const allListings = await getListings();
-//     const startDate = new Date();
-//     const endDate = new Date();
-//     endDate.setMonth(endDate.getMonth() + 2);
-
-//     let allManualBlocks = [];
-
-//     for (let listingId of allListings) {
-//         let calendarData = await getCalendarData(listingId, startDate, endDate);
-
-//         // Delay the next request
-//         await new Promise(resolve => setTimeout(resolve, delayMs));
-
-//         // Increment the request count
-//         requestCount++;
-
-//         // Check if the maximum number of requests per minute has been reached
-//         if (requestCount === maxRequestsPerMinute) {
-//             const remainingDelayMs = 60 * 1000 - delayMs * maxRequestsPerMinute;
-//             await new Promise(resolve => setTimeout(resolve, remainingDelayMs));
-//             requestCount = 0; // Reset the request count
-//         }
-
-//         let blocksData = calendarData && calendarData.days ? calendarData.days.data.days || [] : [];
-
-//         let manualBlocks = formatBlocks(blocksData, listingId);
-
-//         // Merge with all blocks
-//         allManualBlocks = allManualBlocks.concat(manualBlocks);
-//     }
-
-//     return allManualBlocks;
-// };
-
-
 
 // GET request routes
 app.get("/manualBlocks", (req, res) => {
@@ -425,7 +359,7 @@ app.get("/listingIds", (req, res) => {
   });
   
   
-  
+//   reservation part of script
   app.get("/", async (req, res) => {
     const auth = new google.auth.GoogleAuth({
         keyFile: "credentials.json",
@@ -489,6 +423,96 @@ app.get("/listingIds", (req, res) => {
                 auth,
                 spreadsheetId,
                 range: "Sheet1",
+                valueInputOption: "USER_ENTERED",
+                resource: {
+                    values: request.values,
+                },
+            });
+        } else if (request.operation === "update") {
+            await googleSheets.spreadsheets.values.update({
+                auth,
+                spreadsheetId,
+                range: request.range,
+                valueInputOption: "USER_ENTERED",
+                resource: {
+                    values: request.values,
+                },
+            });
+        }
+
+        // Delay the next request
+        if (i < queue.length - 1) {
+            await new Promise(resolve => setTimeout(resolve, delayMs));
+        }
+    }
+
+    res.send(getRows.data);
+});
+
+// block part of script
+app.get("/blocks", async (req, res) => {
+    const auth = new google.auth.GoogleAuth({
+        keyFile: "credentials.json",
+        scopes: "https://www.googleapis.com/auth/spreadsheets"
+    });
+
+    // Create client instance for auth
+    const client = await auth.getClient();
+
+    // Instance of Google Sheets API
+    const googleSheets = google.sheets({ version: "v4", auth: client });
+
+    const spreadsheetId = process.env.SPREADSHEET_ID;
+
+    // Read rows from spreadsheet
+    const getRows = await googleSheets.spreadsheets.values.get({
+        auth,
+        spreadsheetId,
+        range: "Sheet2",
+    });
+
+    // Get existing data
+    const existingData = getRows.data.values || [];
+
+    // Get manual block data
+    const manualBlockData = await getManualBlocksData();
+
+    // Prepare the queue for write requests
+    const queue = [];
+
+    // Check if each row in manualBlockData already exists in the sheet
+    for (let row of manualBlockData) {
+        const rowIndex = existingData.findIndex(existingRow =>
+            existingRow[0] === row[0] // Assuming the ID is the first element in the row
+        );
+
+        if (rowIndex === -1) {
+            // If ID is not in the sheet, append the row
+            queue.push({
+                operation: "append",
+                values: [row],
+            });
+        } else {
+            // If ID is already in the sheet, update the row
+            queue.push({
+                operation: "update",
+                range: `Sheet2!A${rowIndex + 1}:${String.fromCharCode(65 + row.length)}${rowIndex + 1}`,
+                values: [row],
+            });
+        }
+    }
+
+    // Process the queue with limited requests per minute
+    const maxRequestsPerMinute = 10; // Adjust this value based on the per minute user limit
+    const delayMs = 1000 * (60 / maxRequestsPerMinute);
+
+    for (let i = 0; i < queue.length; i++) {
+        const request = queue[i];
+        if (request.operation === "append") {
+            await googleSheets.spreadsheets.values.append({
+                auth,
+                spreadsheetId,
+                range: "Sheet2",
                 valueInputOption: "USER_ENTERED",
                 resource: {
                     values: request.values,
