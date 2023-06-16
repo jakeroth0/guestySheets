@@ -90,3 +90,6 @@ public/
 
 token.js
 credentials.json
+
+db/
+tokenstable.sql
