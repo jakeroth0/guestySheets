@@ -34,7 +34,7 @@ const connection = mysql.createConnection({
     });
   };
   
-  // Request a new access token
+  // Request a real new access token
 //   const requestNewAccessToken = () => {
 //     const options = {
 //       method: 'POST',
@@ -68,24 +68,24 @@ const connection = mysql.createConnection({
 //   };
 
 // Request a MOCK access token
-const requestNewAccessToken = () => {
-    const responseBody = {
-      token_type: 'Bearer',
-      expires_in: 86400,
-      access_token: 'your_generated_access_token',
-      scope: 'open-api',
-    };
+// const requestNewAccessToken = () => {
+//     const responseBody = {
+//       token_type: 'Bearer',
+//       expires_in: 86400,
+//       access_token: 'your_generated_access_token',
+//       scope: 'open-api',
+//     };
   
-    const accessToken = responseBody.access_token;
+//     const accessToken = responseBody.access_token;
   
-    // Store the new access token in the database
-    storeAccessToken(accessToken);
+//     // Store the new access token in the database
+//     storeAccessToken(accessToken);
   
-    console.log('New access token:', accessToken);
+//     console.log('New access token:', accessToken);
   
-    // Continue with the rest of your code
-    // ...
-  };
+//     // Continue with the rest of your code
+//     // ...
+//   };
   
   
 // Store the access token in the database
