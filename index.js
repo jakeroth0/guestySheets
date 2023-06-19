@@ -490,19 +490,40 @@ app.get("/blocks", async (req, res) => {
   
     // Get existing data
     const existingData = getRows.data.values || [];
+    console.log("existingData", existingData);
   
     // Get manual block data
     const manualBlockData = await getManualBlocksData();
     console.log("manualBlockData:", manualBlockData);
+
+        // Prepare the queue for write requests
+        const queue = [];
   
-    // Prepare the queue for write requests
-    const queue = [];
-  
-// Check if each row in manualBlockData already exists in the sheet
+        const startDate = new Date();
+        startDate.setHours(0,0,0,0);
+        
+        const endDate = new Date();
+        endDate.setMonth(endDate.getMonth() + 1);
+        endDate.setHours(23,59,59,999);        
+
+// Filter existingData based on the check-in date range
+const filteredExistingData = existingData.filter((row, index) => {
+    // Skip the header row
+    if (index === 0) return false;
+
+    const checkInString = row[2].split("-");
+    const checkInDate = new Date(checkInString[0], checkInString[1] - 1, checkInString[2]); 
+
+    return checkInDate >= startDate && checkInDate <= endDate;
+});
+
+console.log("startDate", startDate);
+console.log("endDate", endDate);
+console.log("filteredExistingData", filteredExistingData);
+
+// Check if each row in manualBlockData already exists in the filtered existingData
 for (let row of manualBlockData) {
-    const existingRow = existingData.find(
-      (existingRow) => existingRow[0] === row.id
-    );
+    const existingRow = filteredExistingData.find((existingRow) => existingRow[0] === row.id);
   
     if (existingRow) {
       // If row exists, update the values
@@ -514,10 +535,14 @@ for (let row of manualBlockData) {
       });
     } else {
       // If row does not exist, append the values
-      queue.push({
-        operation: "append",
-        values: [Object.values(row)],
-      });
+      const existingRowWithSameId = existingData.find((existingRow) => existingRow[0] === row.id);
+      if (!existingRowWithSameId) {
+        console.log("Appending row:", row);
+        queue.push({
+          operation: "append",
+          values: [Object.values(row)],
+        });
+      }
     }
   }
   
