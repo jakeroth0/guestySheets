@@ -35,37 +35,37 @@ const connection = mysql.createConnection({
   };
   
   // Request a real new access token
-//   const requestNewAccessToken = () => {
-//     const options = {
-//       method: 'POST',
-//       url: 'https://open-api.guesty.com/oauth2/token',
-//       headers: {
-//         Accept: 'application/json',
-//         'Content-Type': 'application/x-www-form-urlencoded',
-//       },
-//       form: {
-//         grant_type: 'client_credentials',
-//         scope: 'open-api',
-//         client_secret: process.env.CLIENT_SECRET,
-//         client_id: process.env.CLIENT_ID,
-//       },
-//     };
+  const requestNewAccessToken = () => {
+    const options = {
+      method: 'POST',
+      url: 'https://open-api.guesty.com/oauth2/token',
+      headers: {
+        Accept: 'application/json',
+        'Content-Type': 'application/x-www-form-urlencoded',
+      },
+      form: {
+        grant_type: 'client_credentials',
+        scope: 'open-api',
+        client_secret: process.env.CLIENT_SECRET,
+        client_id: process.env.CLIENT_ID,
+      },
+    };
   
-//     request(options, function (error, response) {
-//       if (error) throw new Error(error);
+    request(options, function (error, response) {
+      if (error) throw new Error(error);
   
-//       const responseBody = JSON.parse(response.body);
-//       const accessToken = responseBody.access_token;
+      const responseBody = JSON.parse(response.body);
+      const accessToken = responseBody.access_token;
   
-//       // Store the new access token in the database
-//       storeAccessToken(accessToken);
+      // Store the new access token in the database
+      storeAccessToken(accessToken);
   
-//       console.log('New access token:', accessToken);
+      console.log('New access token:', accessToken);
   
-//       // Continue with the rest of your code
-//       // ...
-//     });
-//   };
+      // Continue with the rest of your code
+      // ...
+    });
+  };
 
 // Request a MOCK access token
 // const requestNewAccessToken = () => {
