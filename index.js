@@ -508,14 +508,14 @@ app.get("/blocks", async (req, res) => {
 
 // Filter existingData based on the check-in date range
 const filteredExistingData = existingData.filter((row, index) => {
-    // Skip the header row
-    if (index === 0) return false;
-
+    // Skip the header row and rows with less than 3 elements
+    if (index === 0 || row.length < 3) return false;
+  
     const checkInString = row[2].split("-");
     const checkInDate = new Date(checkInString[0], checkInString[1] - 1, checkInString[2]); 
-
+  
     return checkInDate >= startDate && checkInDate <= endDate;
-});
+  });  
 
 console.log("startDate", startDate);
 console.log("endDate", endDate);
@@ -546,6 +546,21 @@ for (let row of manualBlockData) {
     }
   }
   
+//   clear row logic
+// Check if each row in filteredExistingData is present in manualBlockData
+for (let row of filteredExistingData) {
+    const manualBlockRow = manualBlockData.find((blockRow) => blockRow.id === row[0]);
+  
+    if (!manualBlockRow) {
+      // If row does not exist in manualBlockData, queue up a clear operation
+      const range = `Sheet2!A${existingData.indexOf(row) + 1}:E${existingData.indexOf(row) + 1}`;
+      console.log("Queuing clear operation for:", row);
+      queue.push({
+        operation: "clear",
+        range,
+      });
+    }
+  }
   
     // Process the queue with limited requests per minute
     const maxRequestsPerMinute = 10; // Adjust this value based on the per minute user limit
@@ -573,7 +588,14 @@ for (let row of manualBlockData) {
           valueInputOption: "USER_ENTERED",
           resource: {
             values: request.values,
-          },
+          } ,
+        });
+      } else if (request.operation === "clear") {
+        // Clear operation - clear the specified range
+        await googleSheets.spreadsheets.values.clear({
+          auth,
+          spreadsheetId,
+          range: request.range,
         });
       }
   
