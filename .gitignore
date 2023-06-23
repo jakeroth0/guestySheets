@@ -93,3 +93,4 @@ credentials.json
 
 db/
 tokenstable.sql
+index2.js
