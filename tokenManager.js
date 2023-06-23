@@ -11,6 +11,7 @@ const connection = mysql.createConnection({
     password: process.env.DB_PASSWORD,
     database: process.env.DB_NAME,
   });
+
   
   // Check if the access token is expired
   const checkTokenExpiration = () => {
@@ -68,43 +69,27 @@ const connection = mysql.createConnection({
   };
 
 // Request a MOCK access token
-// const requestNewAccessToken = () => {
-//     const responseBody = {
-//       token_type: 'Bearer',
-//       expires_in: 86400,
-//       access_token: 'your_generated_access_token',
-//       scope: 'open-api',
-//     };
-  
-//     const accessToken = responseBody.access_token;
-  
-//     // Store the new access token in the database
-//     storeAccessToken(accessToken);
-  
-//     console.log('New access token:', accessToken);
-  
-//     // Continue with the rest of your code
-//     // ...
-//   };
-  
-  
+
 // Store the access token in the database
 const storeAccessToken = (accessToken) => {
-    const expirationTime = new Date();
-    console.log("expirationTime", expirationTime);
-    expirationTime.setHours(expirationTime.getHours() + 23); // Expire after 23 hours
-    console.log("expirationTime + 23", expirationTime);
-    const formattedExpirationTime = expirationTime.toISOString().slice(0, 19).replace('T', ' ');
-    console.log("formattedExpirationTime", formattedExpirationTime);
-    const query = `UPDATE tokens SET access_token = '${accessToken}', expiration_time = '${formattedExpirationTime}'`;
-  
-    connection.query(query, function (error, results) {
-      if (error) throw error;
-  
-      console.log('Access token stored successfully');
-    });
-  };
-  
+  const expirationTime = new Date();
+  expirationTime.setHours(expirationTime.getHours() + 23); // Expire after 23 hours
+  const formattedExpirationTime = expirationTime.toISOString().slice(0, 19).replace('T', ' ');
+
+  const query = `
+    INSERT INTO tokens (id, access_token, expiration_time) 
+    VALUES (?, ?, ?) 
+    ON DUPLICATE KEY UPDATE access_token = ?, expiration_time = ?`;
+
+  connection.query(query, [1, accessToken, formattedExpirationTime, accessToken, formattedExpirationTime], function (error, results) {
+    if (error) {
+      console.error('Error executing query:', error);
+      throw error;
+    }
+
+    console.log('Access token stored successfully');
+  });
+};
   
   // Check token expiration and make a request if necessary
   checkTokenExpiration();

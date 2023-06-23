@@ -11,30 +11,6 @@ const maxRequestsPerMinute = 120; // Maximum number of requests per minute
 
 let requestCount = 0; // Counter for the number of requests
 
-// var request = require('request');
-
-// var options = {
-//   'method': 'POST',
-//   'url': 'https://open-api.guesty.com/oauth2/token',
-//   'headers': {
-//     'Accept': 'application/json',
-//     'Content-Type': 'application/x-www-form-urlencoded'
-//   },
-//   form: {
-//     'grant_type': 'client_credentials',
-//     'scope': 'open-api',
-//     'client_secret': process.env.CLIENT_SECRET,
-//     'client_id': process.env.CLIENT_ID
-//   }
-// };
-// request(options, function (error, response) {
-//     if (error) {
-//       console.error('Error fetching token:', error);
-//     } else {
-//       console.log('Received token:', response.body);
-//     }
-//   });
-
 // helper function for dates
 function getFormattedDate(date) {
     var year = date.getFullYear();
@@ -272,250 +248,379 @@ const getManualBlocksData = async () => {
 
     return allManualBlocks;
 };
-
-// GET request routes
-app.get("/manualBlocks", (req, res) => {
-    console.log("Handling manualBlocks request");
-    getManualBlocksData()
-        .then(data => res.send(data))
-        .catch(err => {
-            console.error(err);
-            res.status(500).send(err);
-        });
-});
-
-app.get("/listingIds", (req, res) => {
-    getListings()
-      .then(data => res.send(data))
-      .catch(err => {
-        console.error(err);
-        res.status(500).send(err);
-      });
-  });
-  
-  app.get("/calendarData", async (req, res) => {
-    try {
-        const listingIds = ['63347696d6c96e00350ca2f0','633476a23a949500335e4237']; // replace with actual listing IDs
-        const startDate = new Date('2023-06-01');
-        const endDate = new Date('2023-07-01');
-        const data = await getCalendarData(listingIds, startDate, endDate);
-        res.send(data);
-    } catch (err) {
-        console.error(err);
-        res.status(500).send(err);
-    }
-});
-
-  app.get("/reservationDetails", (req, res) => {
-    getReservationDetails()
-      .then(data => res.send(data))
-      .catch(err => {
-        console.error(err);
-        res.status(500).send(err);
-      });
-  });
-
-  app.get("/testFormatBlock", async (req, res) => {
-    try {
-      // You should replace the mock data with actual data from your application
-      const mockData = [
-        {
-          "date": "2023-06-01",
-          "blocks": {
-            "m": true
-          }
-        },
-        {
-          "date": "2023-06-02",
-          "blocks": {
-            "m": false
-          }
-        },
-        {
-          "date": "2023-06-03",
-          "blocks": {
-            "m": true
-          }
-        },
-        {
-          "date": "2023-06-04",
-          "blocks": {
-            "m": true
-          }
-        }
-      ];
-      const mockListingId = "642f06a579abb2002e13d6e2";
-      const formattedBlockData = formatBlock(mockData, mockListingId);
-      res.send(formattedBlockData);
-    } catch (error) {
-      console.error(error);
-      res.status(500).send(error);
-    }
-  });
-
-  app.get("/testFormatBlock2", async (req, res) => {
-    try {
-      // In this example, you are using the listing id '642f06a579abb2002e13d6e2'
-      // For other listings, the listing id should be obtained from a different source
-      const listingId = '642f06a579abb2002e13d6e2';
-      const startDate = new Date();
-      const endDate = new Date();
-      endDate.setMonth(endDate.getMonth() + 2); // Two months ahead
-  
-      let calendarData = await getCalendarData([listingId], startDate.toISOString().split('T')[0], endDate.toISOString().split('T')[0]);
-  
-      // Filter and format the data
-      const formattedBlockData = formatBlock(calendarData.days, listingId);
-      
-      res.send(formattedBlockData);
-    } catch (error) {
-      console.error(error);
-      res.status(500).send(error);
-    }
-  });
-  
   
 //   reservation part of script
-  app.get("/", async (req, res) => {
-    const auth = new google.auth.GoogleAuth({
-        keyFile: "credentials.json",
-        scopes: "https://www.googleapis.com/auth/spreadsheets"
-    });
+//   app.get("/", async (req, res) => {
+//     const auth = new google.auth.GoogleAuth({
+//         keyFile: "credentials.json",
+//         scopes: "https://www.googleapis.com/auth/spreadsheets"
+//     });
+
+// // Everything below is logic that writes to the google sheet
+//     // Create client instance for auth
+//     const client = await auth.getClient();
+
+//     // Instance of Google Sheets API
+//     const googleSheets = google.sheets({ version: "v4", auth: client });
+
+//     const spreadsheetId = process.env.SPREADSHEET_ID;
+//     // Read rows from spreadsheet
+//     const getRows = await googleSheets.spreadsheets.values.get({
+//         auth,
+//         spreadsheetId,
+//         range: process.env.RANGE,
+//     });
+
+//     // Get existing data
+//     const existingData = getRows.data.values || [];
+
+//     // Get reservation details
+//     const reservationDetails = await getReservationDetails();
+
+//     // Prepare the queue for write requests
+//     const queue = [];
+
+//     // Check if each row in reservationDetails already exists in the sheet
+//     for (let row of reservationDetails) {
+//         const rowIndex = existingData.findIndex(existingRow =>
+//             existingRow[0] === row[0] // Assuming the ID is the first element in the row
+//         );
+
+//         if (rowIndex === -1) {
+//             // If ID is not in the sheet, append the row
+//             queue.push({
+//                 operation: "append",
+//                 values: [row],
+//             });
+//         } else {
+//             // If ID is already in the sheet, update the row
+//             queue.push({
+//                 operation: "update",
+//                 range: `Sheet1!A${rowIndex + 1}:${String.fromCharCode(65 + row.length)}${rowIndex + 1}`,
+//                 values: [row],
+//             });
+//         }
+//     }
+
+//     // Process the queue with limited requests per minute
+//     const maxRequestsPerMinute = 60; // Adjust this value based on the per minute user limit
+//     const delayMs = 1000 * (60 / maxRequestsPerMinute);
+
+//     for (let i = 0; i < queue.length; i++) {
+//         const request = queue[i];
+//         if (request.operation === "append") {
+//             await googleSheets.spreadsheets.values.append({
+//                 auth,
+//                 spreadsheetId,
+//                 range: "Sheet1",
+//                 valueInputOption: "USER_ENTERED",
+//                 resource: {
+//                     values: request.values,
+//                 },
+//             });
+//         } else if (request.operation === "update") {
+//             await googleSheets.spreadsheets.values.update({
+//                 auth,
+//                 spreadsheetId,
+//                 range: request.range,
+//                 valueInputOption: "USER_ENTERED",
+//                 resource: {
+//                     values: request.values,
+//                 },
+//             });
+//         }
+
+//         // Delay the next request
+//         if (i < queue.length - 1) {
+//             await new Promise(resolve => setTimeout(resolve, delayMs));
+//         }
+//     }
+
+//     res.send(getRows.data);
+// });
+
+const handleReservations = async () => {
+  const auth = new google.auth.GoogleAuth({
+    keyFile: "credentials.json",
+    scopes: "https://www.googleapis.com/auth/spreadsheets",
+  });
 
 // Everything below is logic that writes to the google sheet
-    // Create client instance for auth
-    const client = await auth.getClient();
+  // Create client instance for auth
+  const client = await auth.getClient();
 
-    // Instance of Google Sheets API
-    const googleSheets = google.sheets({ version: "v4", auth: client });
+  // Instance of Google Sheets API
+  const googleSheets = google.sheets({ version: "v4", auth: client });
 
-    const spreadsheetId = process.env.SPREADSHEET_ID;
-    // Read rows from spreadsheet
-    const getRows = await googleSheets.spreadsheets.values.get({
-        auth,
-        spreadsheetId,
-        range: process.env.RANGE,
-    });
-
-    // Get existing data
-    const existingData = getRows.data.values || [];
-
-    // Get reservation details
-    const reservationDetails = await getReservationDetails();
-
-    // Prepare the queue for write requests
-    const queue = [];
-
-    // Check if each row in reservationDetails already exists in the sheet
-    for (let row of reservationDetails) {
-        const rowIndex = existingData.findIndex(existingRow =>
-            existingRow[0] === row[0] // Assuming the ID is the first element in the row
-        );
-
-        if (rowIndex === -1) {
-            // If ID is not in the sheet, append the row
-            queue.push({
-                operation: "append",
-                values: [row],
-            });
-        } else {
-            // If ID is already in the sheet, update the row
-            queue.push({
-                operation: "update",
-                range: `Sheet1!A${rowIndex + 1}:${String.fromCharCode(65 + row.length)}${rowIndex + 1}`,
-                values: [row],
-            });
-        }
-    }
-
-    // Process the queue with limited requests per minute
-    const maxRequestsPerMinute = 60; // Adjust this value based on the per minute user limit
-    const delayMs = 1000 * (60 / maxRequestsPerMinute);
-
-    for (let i = 0; i < queue.length; i++) {
-        const request = queue[i];
-        if (request.operation === "append") {
-            await googleSheets.spreadsheets.values.append({
-                auth,
-                spreadsheetId,
-                range: "Sheet1",
-                valueInputOption: "USER_ENTERED",
-                resource: {
-                    values: request.values,
-                },
-            });
-        } else if (request.operation === "update") {
-            await googleSheets.spreadsheets.values.update({
-                auth,
-                spreadsheetId,
-                range: request.range,
-                valueInputOption: "USER_ENTERED",
-                resource: {
-                    values: request.values,
-                },
-            });
-        }
-
-        // Delay the next request
-        if (i < queue.length - 1) {
-            await new Promise(resolve => setTimeout(resolve, delayMs));
-        }
-    }
-
-    res.send(getRows.data);
-});
-
-// block part of script
-// block part of script
-app.get("/blocks", async (req, res) => {
-    const auth = new google.auth.GoogleAuth({
-      keyFile: "credentials.json",
-      scopes: "https://www.googleapis.com/auth/spreadsheets",
-    });
-  
-    // Create client instance for auth
-    const client = await auth.getClient();
-  
-    // Instance of Google Sheets API
-    const googleSheets = google.sheets({ version: "v4", auth: client });
-  
-    const spreadsheetId = process.env.SPREADSHEET_ID;
-  
-    // Read rows from spreadsheet
-    const getRows = await googleSheets.spreadsheets.values.get({
+  const spreadsheetId = process.env.SPREADSHEET_ID;
+  // Read rows from spreadsheet
+  const getRows = await googleSheets.spreadsheets.values.get({
       auth,
       spreadsheetId,
-      range: "Sheet2",
-    });
-  
-    // Get existing data
-    const existingData = getRows.data.values || [];
-    console.log("existingData", existingData);
-  
-    // Get manual block data
-    const manualBlockData = await getManualBlocksData();
-    console.log("manualBlockData:", manualBlockData);
+      range: process.env.RANGE,
+  });
 
-        // Prepare the queue for write requests
-        const queue = [];
+  // Get existing data
+  const existingData = getRows.data.values || [];
+
+  // Get reservation details
+  const reservationDetails = await getReservationDetails();
+
+  // Prepare the queue for write requests
+  const queue = [];
+
+  // Check if each row in reservationDetails already exists in the sheet
+  for (let row of reservationDetails) {
+      const rowIndex = existingData.findIndex(existingRow =>
+          existingRow[0] === row[0] // Assuming the ID is the first element in the row
+      );
+
+      if (rowIndex === -1) {
+          // If ID is not in the sheet, append the row
+          queue.push({
+              operation: "append",
+              values: [row],
+          });
+      } else {
+          // If ID is already in the sheet, update the row
+          queue.push({
+              operation: "update",
+              range: `Sheet1!A${rowIndex + 1}:${String.fromCharCode(65 + row.length)}${rowIndex + 1}`,
+              values: [row],
+          });
+      }
+  }
+
+  // Process the queue with limited requests per minute
+  const maxRequestsPerMinute = 60; // Adjust this value based on the per minute user limit
+  const delayMs = 1000 * (60 / maxRequestsPerMinute);
+
+  for (let i = 0; i < queue.length; i++) {
+      const request = queue[i];
+      if (request.operation === "append") {
+          await googleSheets.spreadsheets.values.append({
+              auth,
+              spreadsheetId,
+              range: "Sheet1",
+              valueInputOption: "USER_ENTERED",
+              resource: {
+                  values: request.values,
+              },
+          });
+      } else if (request.operation === "update") {
+          await googleSheets.spreadsheets.values.update({
+              auth,
+              spreadsheetId,
+              range: request.range,
+              valueInputOption: "USER_ENTERED",
+              resource: {
+                  values: request.values,
+              },
+          });
+      }
+
+      // Delay the next request
+      if (i < queue.length - 1) {
+          await new Promise(resolve => setTimeout(resolve, delayMs));
+      }
+  }
+  console.log("done running handleReservations");
+  return getRows.data;;
+};
+
+// block part of script
+// block part of script
+// app.get("/blocks", async (req, res) => {
+//     const auth = new google.auth.GoogleAuth({
+//       keyFile: "credentials.json",
+//       scopes: "https://www.googleapis.com/auth/spreadsheets",
+//     });
   
-        const startDate = new Date();
-        startDate.setHours(0,0,0,0);
+//     // Create client instance for auth
+//     const client = await auth.getClient();
+  
+//     // Instance of Google Sheets API
+//     const googleSheets = google.sheets({ version: "v4", auth: client });
+  
+//     const spreadsheetId = process.env.SPREADSHEET_ID;
+  
+//     // Read rows from spreadsheet
+//     const getRows = await googleSheets.spreadsheets.values.get({
+//       auth,
+//       spreadsheetId,
+//       range: "Sheet2",
+//     });
+  
+//     // Get existing data
+//     const existingData = getRows.data.values || [];
+//     console.log("existingData", existingData);
+  
+//     // Get manual block data
+//     const manualBlockData = await getManualBlocksData();
+//     console.log("manualBlockData:", manualBlockData);
+
+//         // Prepare the queue for write requests
+//         const queue = [];
+  
+//         const startDate = new Date();
+//         startDate.setHours(0,0,0,0);
         
-        const endDate = new Date();
-        endDate.setMonth(endDate.getMonth() + 1);
-        endDate.setHours(23,59,59,999);        
+//         const endDate = new Date();
+//         endDate.setMonth(endDate.getMonth() + 1);
+//         endDate.setHours(23,59,59,999);        
+
+// // Filter existingData based on the check-in date range
+// const filteredExistingData = existingData.filter((row, index) => {
+//     // Skip the header row and rows with less than 3 elements
+//     if (index === 0 || row.length < 3) return false;
+  
+//     const checkInString = row[2].split("-");
+//     const checkInDate = new Date(checkInString[0], checkInString[1] - 1, checkInString[2]); 
+  
+//     return checkInDate >= startDate && checkInDate <= endDate;
+//   });  
+
+// console.log("startDate", startDate);
+// console.log("endDate", endDate);
+// console.log("filteredExistingData", filteredExistingData);
+
+// // Check if each row in manualBlockData already exists in the filtered existingData
+// for (let row of manualBlockData) {
+//     const existingRow = filteredExistingData.find((existingRow) => existingRow[0] === row.id);
+  
+//     if (existingRow) {
+//       // If row exists, update the values
+//       const range = `Sheet2!A${existingData.indexOf(existingRow) + 1}:E${existingData.indexOf(existingRow) + 1}`;
+//       queue.push({
+//         operation: "update",
+//         range,
+//         values: [Object.values(row)],
+//       });
+//     } else {
+//       // If row does not exist, append the values
+//       const existingRowWithSameId = existingData.find((existingRow) => existingRow[0] === row.id);
+//       if (!existingRowWithSameId) {
+//         console.log("Appending row:", row);
+//         queue.push({
+//           operation: "append",
+//           values: [Object.values(row)],
+//         });
+//       }
+//     }
+//   }
+  
+// //   clear row logic
+// // Check if each row in filteredExistingData is present in manualBlockData
+// for (let row of filteredExistingData) {
+//     const manualBlockRow = manualBlockData.find((blockRow) => blockRow.id === row[0]);
+  
+//     if (!manualBlockRow) {
+//       // If row does not exist in manualBlockData, queue up a clear operation
+//       const range = `Sheet2!A${existingData.indexOf(row) + 1}:E${existingData.indexOf(row) + 1}`;
+//       console.log("Queuing clear operation for:", row);
+//       queue.push({
+//         operation: "clear",
+//         range,
+//       });
+//     }
+//   }
+  
+//     // Process the queue with limited requests per minute
+//     const maxRequestsPerMinute = 10; // Adjust this value based on the per minute user limit
+//     const delayMs = 1000 * (60 / maxRequestsPerMinute);
+  
+//     for (let i = 0; i < queue.length; i++) {
+//       const request = queue[i];
+//       console.log("Processing request:", request);
+  
+//       if (request.operation === "append") {
+//         await googleSheets.spreadsheets.values.append({
+//           auth,
+//           spreadsheetId,
+//           range: "Sheet2",
+//           valueInputOption: "USER_ENTERED",
+//           resource: {
+//             values: request.values,
+//           },
+//         });
+//       } else if (request.operation === "update") {
+//         await googleSheets.spreadsheets.values.update({
+//           auth,
+//           spreadsheetId,
+//           range: request.range,
+//           valueInputOption: "USER_ENTERED",
+//           resource: {
+//             values: request.values,
+//           } ,
+//         });
+//       } else if (request.operation === "clear") {
+//         // Clear operation - clear the specified range
+//         await googleSheets.spreadsheets.values.clear({
+//           auth,
+//           spreadsheetId,
+//           range: request.range,
+//         });
+//       }
+  
+//       // Delay the next request
+//       if (i < queue.length - 1) {
+//         await new Promise((resolve) => setTimeout(resolve, delayMs));
+//       }
+//     }
+  
+//     console.log("Completed processing requests");
+//     res.send(getRows.data);
+//   });
+
+const handleBlocks = async () => {
+  const auth = new google.auth.GoogleAuth({
+    keyFile: "credentials.json",
+    scopes: "https://www.googleapis.com/auth/spreadsheets",
+  });
+
+  // Create client instance for auth
+  const client = await auth.getClient();
+
+  // Instance of Google Sheets API
+  const googleSheets = google.sheets({ version: "v4", auth: client });
+
+  const spreadsheetId = process.env.SPREADSHEET_ID;
+
+  // Read rows from spreadsheet
+  const getRows = await googleSheets.spreadsheets.values.get({
+    auth,
+    spreadsheetId,
+    range: "Sheet2",
+  });
+
+  // Get existing data
+  const existingData = getRows.data.values || [];
+  console.log("existingData", existingData);
+
+  // Get manual block data
+  const manualBlockData = await getManualBlocksData();
+  console.log("manualBlockData:", manualBlockData);
+
+      // Prepare the queue for write requests
+      const queue = [];
+
+      const startDate = new Date();
+      startDate.setHours(0,0,0,0);
+      
+      const endDate = new Date();
+      endDate.setMonth(endDate.getMonth() + 1);
+      endDate.setHours(23,59,59,999);        
 
 // Filter existingData based on the check-in date range
 const filteredExistingData = existingData.filter((row, index) => {
-    // Skip the header row and rows with less than 3 elements
-    if (index === 0 || row.length < 3) return false;
-  
-    const checkInString = row[2].split("-");
-    const checkInDate = new Date(checkInString[0], checkInString[1] - 1, checkInString[2]); 
-  
-    return checkInDate >= startDate && checkInDate <= endDate;
-  });  
+  // Skip the header row and rows with less than 3 elements
+  if (index === 0 || row.length < 3) return false;
+
+  const checkInString = row[2].split("-");
+  const checkInDate = new Date(checkInString[0], checkInString[1] - 1, checkInString[2]); 
+
+  return checkInDate >= startDate && checkInDate <= endDate;
+});  
 
 console.log("startDate", startDate);
 console.log("endDate", endDate);
@@ -523,92 +628,101 @@ console.log("filteredExistingData", filteredExistingData);
 
 // Check if each row in manualBlockData already exists in the filtered existingData
 for (let row of manualBlockData) {
-    const existingRow = filteredExistingData.find((existingRow) => existingRow[0] === row.id);
-  
-    if (existingRow) {
-      // If row exists, update the values
-      const range = `Sheet2!A${existingData.indexOf(existingRow) + 1}:E${existingData.indexOf(existingRow) + 1}`;
+  const existingRow = filteredExistingData.find((existingRow) => existingRow[0] === row.id);
+
+  if (existingRow) {
+    // If row exists, update the values
+    const range = `Sheet2!A${existingData.indexOf(existingRow) + 1}:E${existingData.indexOf(existingRow) + 1}`;
+    queue.push({
+      operation: "update",
+      range,
+      values: [Object.values(row)],
+    });
+  } else {
+    // If row does not exist, append the values
+    const existingRowWithSameId = existingData.find((existingRow) => existingRow[0] === row.id);
+    if (!existingRowWithSameId) {
+      console.log("Appending row:", row);
       queue.push({
-        operation: "update",
-        range,
+        operation: "append",
         values: [Object.values(row)],
       });
-    } else {
-      // If row does not exist, append the values
-      const existingRowWithSameId = existingData.find((existingRow) => existingRow[0] === row.id);
-      if (!existingRowWithSameId) {
-        console.log("Appending row:", row);
-        queue.push({
-          operation: "append",
-          values: [Object.values(row)],
-        });
-      }
     }
   }
-  
+}
+
 //   clear row logic
 // Check if each row in filteredExistingData is present in manualBlockData
 for (let row of filteredExistingData) {
-    const manualBlockRow = manualBlockData.find((blockRow) => blockRow.id === row[0]);
-  
-    if (!manualBlockRow) {
-      // If row does not exist in manualBlockData, queue up a clear operation
-      const range = `Sheet2!A${existingData.indexOf(row) + 1}:E${existingData.indexOf(row) + 1}`;
-      console.log("Queuing clear operation for:", row);
-      queue.push({
-        operation: "clear",
-        range,
+  const manualBlockRow = manualBlockData.find((blockRow) => blockRow.id === row[0]);
+
+  if (!manualBlockRow) {
+    // If row does not exist in manualBlockData, queue up a clear operation
+    const range = `Sheet2!A${existingData.indexOf(row) + 1}:E${existingData.indexOf(row) + 1}`;
+    console.log("Queuing clear operation for:", row);
+    queue.push({
+      operation: "clear",
+      range,
+    });
+  }
+}
+
+  // Process the queue with limited requests per minute
+  const maxRequestsPerMinute = 10; // Adjust this value based on the per minute user limit
+  const delayMs = 1000 * (60 / maxRequestsPerMinute);
+
+  for (let i = 0; i < queue.length; i++) {
+    const request = queue[i];
+    console.log("Processing request:", request);
+
+    if (request.operation === "append") {
+      await googleSheets.spreadsheets.values.append({
+        auth,
+        spreadsheetId,
+        range: "Sheet2",
+        valueInputOption: "USER_ENTERED",
+        resource: {
+          values: request.values,
+        },
+      });
+    } else if (request.operation === "update") {
+      await googleSheets.spreadsheets.values.update({
+        auth,
+        spreadsheetId,
+        range: request.range,
+        valueInputOption: "USER_ENTERED",
+        resource: {
+          values: request.values,
+        } ,
+      });
+    } else if (request.operation === "clear") {
+      // Clear operation - clear the specified range
+      await googleSheets.spreadsheets.values.clear({
+        auth,
+        spreadsheetId,
+        range: request.range,
       });
     }
-  }
-  
-    // Process the queue with limited requests per minute
-    const maxRequestsPerMinute = 10; // Adjust this value based on the per minute user limit
-    const delayMs = 1000 * (60 / maxRequestsPerMinute);
-  
-    for (let i = 0; i < queue.length; i++) {
-      const request = queue[i];
-      console.log("Processing request:", request);
-  
-      if (request.operation === "append") {
-        await googleSheets.spreadsheets.values.append({
-          auth,
-          spreadsheetId,
-          range: "Sheet2",
-          valueInputOption: "USER_ENTERED",
-          resource: {
-            values: request.values,
-          },
-        });
-      } else if (request.operation === "update") {
-        await googleSheets.spreadsheets.values.update({
-          auth,
-          spreadsheetId,
-          range: request.range,
-          valueInputOption: "USER_ENTERED",
-          resource: {
-            values: request.values,
-          } ,
-        });
-      } else if (request.operation === "clear") {
-        // Clear operation - clear the specified range
-        await googleSheets.spreadsheets.values.clear({
-          auth,
-          spreadsheetId,
-          range: request.range,
-        });
-      }
-  
-      // Delay the next request
-      if (i < queue.length - 1) {
-        await new Promise((resolve) => setTimeout(resolve, delayMs));
-      }
+
+    // Delay the next request
+    if (i < queue.length - 1) {
+      await new Promise((resolve) => setTimeout(resolve, delayMs));
     }
+  }
+
+  console.log("Completed processing requests");
+  return getRows.data;
+};
   
-    console.log("Completed processing requests");
-    res.send(getRows.data);
-  });
-  
+  handleReservations()
+  .then(reservationData => {
+    console.log(reservationData);
+    return handleBlocks();
+  })
+  .then(blockData => {
+    console.log(blockData);
+  })
+  .catch(error => console.error(error));
   
   
 app.listen(1337, (req, res) => console.log("running on 1337"));
