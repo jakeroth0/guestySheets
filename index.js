@@ -170,7 +170,9 @@ const getReservationDetails = async () => {
     let skip = 0;
   
     // Authenticate before making a request
-    sdk.auth(process.env.MY_TOKEN);
+    // sdk.auth(process.env.MY_TOKEN);
+    // sdk.auth("Bearer " + accessToken);
+    // console.log(accessToken);
   
     while (true) {
       const response = await sdk.getReservations({
@@ -223,7 +225,7 @@ const getReservationDetails = async () => {
     let skip = 0;
   
     // Authenticate before making a request
-    sdk.auth(process.env.MY_TOKEN);
+    // sdk.auth(process.env.MY_TOKEN);
     while (true) {
       const response = await sdk.getListings({
         fields: '_id', // request only the listingId
@@ -267,7 +269,7 @@ async function getCalendarData(listingIds, startDate, endDate) {
   const endDateFormat = getFormattedDate(endDate);
 
   // Authenticate before making a request
-  sdk.auth(process.env.MY_TOKEN);
+  // sdk.auth(process.env.MY_TOKEN);
   try {
     const response = await sdk.getAvailabilityPricingApiCalendarListings({
       listingIds: idsString,
@@ -289,7 +291,7 @@ const getManualBlocksData = async () => {
     let allManualBlocks = [];
 
     // Authenticate before making a request
-    sdk.auth(process.env.MY_TOKEN);
+    // sdk.auth(process.env.MY_TOKEN);
 
     for (let listingId of allListings) {
         let calendarData = await getCalendarData(listingId, startDate, endDate);
@@ -569,7 +571,8 @@ for (let row of filteredExistingData) {
   
 // Main execution flow
 const run = async () => {
-  await checkTokenExpiration();
+  const accessToken = await checkTokenExpiration();
+  sdk.auth("Bearer " + accessToken);
   await handleReservations();
   await handleBlocks();
 };
