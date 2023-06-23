@@ -1,1 +1,1 @@
-worker: node your_script_filename.js
+worker: node index.js
