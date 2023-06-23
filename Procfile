@@ -1,1 +1,1 @@
-web: npm start
+worker: node your_script_filename.js
