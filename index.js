@@ -116,7 +116,7 @@ function getFormattedDate(date) {
     return `${listingId}_${formattedCheckIn}`;
   }
 // this function takes data gathered from the calendar end point and builds an array of objects so that blocks can be added into the sheets
-function formatBlock(blocksData, listingId) {
+function formatBlock(blocksData, listingId, allListings) {
     // Filter out the dates where blocks.m is false
     const blockedDates = blocksData.filter(day => day.blocks.m);
     
@@ -142,7 +142,8 @@ function formatBlock(blocksData, listingId) {
                 listingId,
                 checkIn,
                 checkOut,
-                type: 'manualBlock'
+                type: 'manualBlock',
+                nickname: allListings[listingId]
             });
             // Start a new reservation with the current date as checkIn and checkOut
             checkIn = blockedDates[i].date;
@@ -158,7 +159,8 @@ function formatBlock(blocksData, listingId) {
         listingId,
         checkIn,
         checkOut,
-        type: 'manualBlock'
+        type: 'manualBlock',
+        nickname: allListings[listingId]
     });
 
     return reservations;
@@ -219,47 +221,81 @@ const getReservationDetails = async () => {
     return reservationDetails;
   };
 
+  // const getListings = async () => {
+  //   let listingIds = [];
+  //   const limit = 100;
+  //   let skip = 0;
+  
+  //   // Authenticate before making a request
+  //   // sdk.auth(process.env.MY_TOKEN);
+  //   while (true) {
+  //     const response = await sdk.getListings({
+  //       fields: '_id', // request only the listingId
+  //       limit: limit.toString(),
+  //       skip: skip.toString()
+  //     });
+  
+  //     for (let listing of response.data.results) {
+  //       listingIds.push(listing._id);
+  //     }
+  
+  //     // If the number of results is less than the limit, break the loop
+  //     if (response.data.results.length < limit) {
+  //       break;
+  //     }
+  
+  //     skip += limit;
+  
+  //     // Delay the next request
+  //     await new Promise(resolve => setTimeout(resolve, delayMs));
+  
+  //     // Increment the request count
+  //     requestCount++;
+  
+  //     // Check if the maximum number of requests per minute has been reached
+  //     if (requestCount === maxRequestsPerMinute) {
+  //       const remainingDelayMs = 60 * 1000 - delayMs * maxRequestsPerMinute;
+  //       await new Promise(resolve => setTimeout(resolve, remainingDelayMs));
+  //       requestCount = 0; // Reset the request count
+  //     }
+  //   }
+  
+  //   return listingIds;
+  // };
+
   const getListings = async () => {
     let listingIds = [];
     const limit = 100;
     let skip = 0;
+    
+    // Create an empty object to store the mapping
+    let nicknameMapping = {};
   
-    // Authenticate before making a request
-    // sdk.auth(process.env.MY_TOKEN);
     while (true) {
       const response = await sdk.getListings({
-        fields: '_id', // request only the listingId
+        fields: '_id%20nickname', // request only the listingId
         limit: limit.toString(),
         skip: skip.toString()
       });
   
-      for (let listing of response.data.results) {
-        listingIds.push(listing._id);
-      }
+      // Populate the nicknameMapping object
+      response.data.results.forEach(listing => {
+        nicknameMapping[listing._id] = listing.nickname;
+      });
   
-      // If the number of results is less than the limit, break the loop
+      // If there are no more listings to fetch, break out of the loop
       if (response.data.results.length < limit) {
         break;
       }
   
+      // Otherwise, increment the skip counter to fetch the next page
       skip += limit;
-  
-      // Delay the next request
-      await new Promise(resolve => setTimeout(resolve, delayMs));
-  
-      // Increment the request count
-      requestCount++;
-  
-      // Check if the maximum number of requests per minute has been reached
-      if (requestCount === maxRequestsPerMinute) {
-        const remainingDelayMs = 60 * 1000 - delayMs * maxRequestsPerMinute;
-        await new Promise(resolve => setTimeout(resolve, remainingDelayMs));
-        requestCount = 0; // Reset the request count
-      }
     }
-  
-    return listingIds;
+  console.log("nicknameMapping", nicknameMapping);
+    // Return the nicknameMapping object along with the original results
+    return nicknameMapping;
   };
+  
   
 async function getCalendarData(listingIds, startDate, endDate) {
   const idsString = Array.isArray(listingIds) ? listingIds.join(',') : listingIds;
@@ -293,7 +329,8 @@ const getManualBlocksData = async () => {
     // Authenticate before making a request
     // sdk.auth(process.env.MY_TOKEN);
 
-    for (let listingId of allListings) {
+    // for (let listingId of allListings) {
+      for (let listingId of Object.keys(allListings)) {    
         let calendarData = await getCalendarData(listingId, startDate, endDate);
 
         // Delay the next request
@@ -318,7 +355,8 @@ const getManualBlocksData = async () => {
                 currentBlock.push(day);
             } else if (currentBlock.length > 0) {
                 // If the day is not manually blocked and there is a current block, add the current block to manualBlocks
-                const formattedBlocks = formatBlock(currentBlock, listingId);
+                // THIS IS A MEGA PROBLEM
+                const formattedBlocks = formatBlock(currentBlock, listingId, allListings);
                 allManualBlocks = allManualBlocks.concat(formattedBlocks);
                 // Start a new block
                 currentBlock = [];
@@ -327,7 +365,7 @@ const getManualBlocksData = async () => {
         
         // If there is a current block at the end of the days, add it to manualBlocks
         if (currentBlock.length > 0) {
-            const formattedBlocks = formatBlock(currentBlock, listingId);
+            const formattedBlocks = formatBlock(currentBlock, listingId, allListings);
             allManualBlocks = allManualBlocks.concat(formattedBlocks);
         }
         
@@ -340,8 +378,8 @@ const getManualBlocksData = async () => {
 
 const handleReservations = async () => {
   const auth = new google.auth.GoogleAuth({
-    // keyFile: "credentials.json",
-    keyFile: "/app/google-credentials.json",
+    keyFile: "credentials.json",
+    // keyFile: "/app/google-credentials.json",
     scopes: "https://www.googleapis.com/auth/spreadsheets",
   });
 
@@ -430,8 +468,8 @@ const handleReservations = async () => {
 
 const handleBlocks = async () => {
   const auth = new google.auth.GoogleAuth({
-    // keyFile: "credentials.json",
-    keyFile: "/app/google-credentials.json",
+    keyFile: "credentials.json",
+    // keyFile: "/app/google-credentials.json",
     scopes: "https://www.googleapis.com/auth/spreadsheets",
   });
 
@@ -489,7 +527,7 @@ for (let row of manualBlockData) {
 
   if (existingRow) {
     // If row exists, update the values
-    const range = `Sheet2!A${existingData.indexOf(existingRow) + 1}:E${existingData.indexOf(existingRow) + 1}`;
+    const range = `Sheet2!A${existingData.indexOf(existingRow) + 1}:F${existingData.indexOf(existingRow) + 1}`;
     queue.push({
       operation: "update",
       range,
@@ -515,7 +553,7 @@ for (let row of filteredExistingData) {
 
   if (!manualBlockRow) {
     // If row does not exist in manualBlockData, queue up a clear operation
-    const range = `Sheet2!A${existingData.indexOf(row) + 1}:E${existingData.indexOf(row) + 1}`;
+    const range = `Sheet2!A${existingData.indexOf(row) + 1}:F${existingData.indexOf(row) + 1}`;
     console.log("Queuing clear operation for:", row);
     queue.push({
       operation: "clear",
@@ -576,7 +614,7 @@ const run = async () => {
   const accessToken = await checkTokenExpiration();
   sdk.auth("Bearer " + accessToken);
   await handleReservations();
-  await handleBlocks();
+  // await handleBlocks();
 };
 
 run().catch(console.error);
