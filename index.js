@@ -221,48 +221,6 @@ const getReservationDetails = async () => {
     return reservationDetails;
   };
 
-  // const getListings = async () => {
-  //   let listingIds = [];
-  //   const limit = 100;
-  //   let skip = 0;
-  
-  //   // Authenticate before making a request
-  //   // sdk.auth(process.env.MY_TOKEN);
-  //   while (true) {
-  //     const response = await sdk.getListings({
-  //       fields: '_id', // request only the listingId
-  //       limit: limit.toString(),
-  //       skip: skip.toString()
-  //     });
-  
-  //     for (let listing of response.data.results) {
-  //       listingIds.push(listing._id);
-  //     }
-  
-  //     // If the number of results is less than the limit, break the loop
-  //     if (response.data.results.length < limit) {
-  //       break;
-  //     }
-  
-  //     skip += limit;
-  
-  //     // Delay the next request
-  //     await new Promise(resolve => setTimeout(resolve, delayMs));
-  
-  //     // Increment the request count
-  //     requestCount++;
-  
-  //     // Check if the maximum number of requests per minute has been reached
-  //     if (requestCount === maxRequestsPerMinute) {
-  //       const remainingDelayMs = 60 * 1000 - delayMs * maxRequestsPerMinute;
-  //       await new Promise(resolve => setTimeout(resolve, remainingDelayMs));
-  //       requestCount = 0; // Reset the request count
-  //     }
-  //   }
-  
-  //   return listingIds;
-  // };
-
   const getListings = async () => {
     let listingIds = [];
     const limit = 100;
@@ -378,8 +336,8 @@ const getManualBlocksData = async () => {
 
 const handleReservations = async () => {
   const auth = new google.auth.GoogleAuth({
-    keyFile: "credentials.json",
-    // keyFile: "/app/google-credentials.json",
+    // keyFile: "credentials.json",
+    keyFile: "/app/google-credentials.json",
     scopes: "https://www.googleapis.com/auth/spreadsheets",
   });
 
@@ -468,8 +426,8 @@ const handleReservations = async () => {
 
 const handleBlocks = async () => {
   const auth = new google.auth.GoogleAuth({
-    keyFile: "credentials.json",
-    // keyFile: "/app/google-credentials.json",
+    // keyFile: "credentials.json",
+    keyFile: "/app/google-credentials.json",
     scopes: "https://www.googleapis.com/auth/spreadsheets",
   });
 
@@ -614,7 +572,7 @@ const run = async () => {
   const accessToken = await checkTokenExpiration();
   sdk.auth("Bearer " + accessToken);
   await handleReservations();
-  // await handleBlocks();
+  await handleBlocks();
 };
 
 run().catch(console.error);
