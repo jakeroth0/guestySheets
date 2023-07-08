@@ -178,7 +178,7 @@ const getReservationDetails = async () => {
   
     while (true) {
       const response = await sdk.getReservations({
-        fields: '_id%20listing.nickname%20checkIn%20checkOut%20confirmationCode%20money.fareAccommodation%20money.fareCleaning%20createdAt',
+        fields: '_id%20listing.nickname%20checkIn%20checkOut%20confirmationCode%20createdAt%20money.fareAccommodation%20money.fareCleaning%20integration.platform%20guest.fullName%20guest.phone%20status',
         limit: limit.toString(),
         skip: skip.toString()
       });
@@ -193,7 +193,11 @@ const getReservationDetails = async () => {
           reservation.createdAt,
           reservation.money.fareAccommodation,
           reservation.money.fareCleaning,
-          'reservation',
+          // 'reservation',
+          reservation.status,
+          reservation.integration.platform,
+          reservation.guest.fullName,
+          reservation.guest.phone,
         ]);
       }
   
@@ -424,6 +428,132 @@ const handleReservations = async () => {
   return getRows.data;;
 };
 
+// const handleReservations = async () => {
+//   const auth = new google.auth.GoogleAuth({
+//     keyFile: "credentials.json",
+//     // keyFile: "/app/google-credentials.json",
+//     scopes: "https://www.googleapis.com/auth/spreadsheets",
+//   });
+
+//   // Create client instance for auth
+//   const client = await auth.getClient();
+
+//   // Instance of Google Sheets API
+//   const googleSheets = google.sheets({ version: "v4", auth: client });
+
+//   const spreadsheetId = process.env.SPREADSHEET_ID;
+
+//   // Read rows from spreadsheet
+//   const getRows = await googleSheets.spreadsheets.values.get({
+//     auth,
+//     spreadsheetId,
+//     range: process.env.RANGE,
+//   });
+
+//   // Get existing data
+//   const existingData = getRows.data.values || [];
+
+//   // Remove the first row which contains labels
+//   const dataWithoutLabels = existingData.slice(1);
+
+//   // Get reservation IDs from the Google Sheet
+//   const reservationIds = dataWithoutLabels.map(row => row[0]); // Assuming the ID is the first element in the row
+
+//   // Prepare the queue for write requests
+//   const queue = [];
+
+//   // Process each reservation ID
+//   for (let reservationId of reservationIds) {
+//     try {
+//       // Get reservation data using sdk.getReservationsId
+//       const response = await sdk.getReservationsId({
+//         fields: '_id%20listing.nickname%20checkIn%20checkOut%20confirmationCode%20createdAt%20money.fareAccommodation%20money.fareCleaning%20integration.platform%20guest.fullName%20guest.phone%20status',
+//         id: reservationId,
+//       });
+
+//       const reservationData = response.data;
+
+//       // Prepare the row data for update
+//       const rowData = [
+//         reservationData._id,
+//         reservationData.listing.nickname,
+//         reservationData.checkIn,
+//         reservationData.checkOut,
+//         reservationData.confirmationCode,
+//         reservationData.createdAt,
+//         reservationData.money.fareAccommodation,
+//         reservationData.money.fareCleaning,
+//         reservationData.status,
+//         reservationData.integration.platform,
+//         reservationData.guest.fullName,
+//         reservationData.guest.phone,
+//       ];
+
+//       const rowIndex = existingData.findIndex(existingRow =>
+//         existingRow[0] === reservationData._id
+//       );
+
+//       if (rowIndex === -1) {
+//         // If ID is not in the sheet, append the row
+//         queue.push({
+//           operation: "append",
+//           values: [rowData],
+//         });
+//       } else {
+//         // If ID is already in the sheet, update the row
+//         queue.push({
+//           operation: "update",
+//           range: `Sheet1!A${rowIndex + 1}:${String.fromCharCode(65 + rowData.length)}${rowIndex + 1}`,
+//           values: [rowData],
+//         });
+//       }
+
+//       // Delay between API requests to avoid rate limits
+//       await new Promise(resolve => setTimeout(resolve, 1000)); // Adjust the delay as needed
+//     } catch (error) {
+//       console.error(`Failed to retrieve data for reservation ID ${reservationId}`);
+//       console.error(error);
+//     }
+//   }
+
+//   // Process the queue with limited requests per minute
+//   const maxRequestsPerMinute = 60; // Adjust this value based on the per minute user limit
+//   const delayMs = 1000 * (60 / maxRequestsPerMinute);
+
+//   for (let i = 0; i < queue.length; i++) {
+//     const request = queue[i];
+//     if (request.operation === "append") {
+//       await googleSheets.spreadsheets.values.append({
+//         auth,
+//         spreadsheetId,
+//         range: "Sheet1",
+//         valueInputOption: "USER_ENTERED",
+//         resource: {
+//           values: request.values,
+//         },
+//       });
+//     } else if (request.operation === "update") {
+//       await googleSheets.spreadsheets.values.update({
+//         auth,
+//         spreadsheetId,
+//         range: request.range,
+//         valueInputOption: "USER_ENTERED",
+//         resource: {
+//           values: request.values,
+//         },
+//       });
+//     }
+
+//     // Delay the next request
+//     if (i < queue.length - 1) {
+//       await new Promise(resolve => setTimeout(resolve, delayMs));
+//     }
+//   }
+
+//   console.log("Done running handleReservations");
+//   return getRows.data;
+// };
+
 const handleBlocks = async () => {
   const auth = new google.auth.GoogleAuth({
     // keyFile: "credentials.json",
@@ -571,7 +701,7 @@ for (let row of filteredExistingData) {
 const run = async () => {
   const accessToken = await checkTokenExpiration();
   sdk.auth("Bearer " + accessToken);
-  await handleReservations();
+  // await handleReservations();
   await handleBlocks();
 };
 
