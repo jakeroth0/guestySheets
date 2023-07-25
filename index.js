@@ -118,7 +118,9 @@ function getFormattedDate(date) {
 // this function takes data gathered from the calendar end point and builds an array of objects so that blocks can be added into the sheets
 function formatBlock(blocksData, listingId, allListings) {
     // Filter out the dates where blocks.m is false
-    const blockedDates = blocksData.filter(day => day.blocks.m);
+    // Shouldn't this be days.blocks.m?
+    // const blockedDates = blocksData.filter(day => day.blocks.m);
+    const blockedDates = blocksData.filter(days => days.blocks.m);
     
     // Sort the blocked dates in ascending order
     blockedDates.sort((a, b) => new Date(a.date) - new Date(b.date));
@@ -126,6 +128,8 @@ function formatBlock(blocksData, listingId, allListings) {
     let reservations = [];
     let checkIn = blockedDates[0].date;
     let checkOut = blockedDates[0].date;
+    // let manualBlockNote = (blockedDates[0].blockRefs && blockedDates[0].blockRefs.length > 0 && blockedDates[0].blockRefs[0].note) ? blockedDates[0].blockRefs[0].note : "";
+
 
     // Iterate over the sorted blocked dates
     for (let i = 1; i < blockedDates.length; i++) {
@@ -144,15 +148,18 @@ function formatBlock(blocksData, listingId, allListings) {
                 checkOut,
                 type: 'manualBlock',
                 nickname: allListings[listingId]
+                // manualBlockNote
             });
             // Start a new reservation with the current date as checkIn and checkOut
             checkIn = blockedDates[i].date;
             checkOut = blockedDates[i].date;
+            // manualBlockNote = (blockedDates[i].blockRefs && blockedDates[i].blockRefs.length > 0 && blockedDates[i].blockRefs[0].note) ? blockedDates[i].blockRefs[0].note : "";
         }
     }
 
     // Push the last reservation to the reservations array
     const compositeKey = generateCompositeKey(listingId, checkIn);
+    // let lastBlockNote = (blockedDates[blockedDates.length - 1].blockRefs && blockedDates[blockedDates.length - 1].blockRefs.length > 0 && blockedDates[blockedDates.length - 1].blockRefs[0].note) ? blockedDates[blockedDates.length - 1].blockRefs[0].note : "";
 
     reservations.push({
         id: compositeKey,
@@ -161,8 +168,10 @@ function formatBlock(blocksData, listingId, allListings) {
         checkOut,
         type: 'manualBlock',
         nickname: allListings[listingId]
+        // manualBlockNote: lastBlockNote
     });
-
+    // console.log('reservations right here', reservations);
+    // console.log('blockedDates', blockedDates[0].blockRefs[0].note);
     return reservations;
 }
  
@@ -291,49 +300,28 @@ const getManualBlocksData = async () => {
     // Authenticate before making a request
     // sdk.auth(process.env.MY_TOKEN);
 
-    // for (let listingId of allListings) {
-      for (let listingId of Object.keys(allListings)) {    
-        let calendarData = await getCalendarData(listingId, startDate, endDate);
+   // Get all listingIds
+   const allListingIds = Object.keys(allListings).join(',');
+   console.log('allListingIds', allListingIds);
 
-        // Delay the next request
-        await new Promise(resolve => setTimeout(resolve, delayMs));
+   // Make one call with all listingIds
+   const calendarData = await getCalendarData(allListingIds, startDate, endDate); 
 
-        // Increment the request count
-        requestCount++;
-
-        // Check if the maximum number of requests per minute has been reached
-        if (requestCount === maxRequestsPerMinute) {
-            const remainingDelayMs = 60 * 1000 - delayMs * maxRequestsPerMinute;
-            await new Promise(resolve => setTimeout(resolve, remainingDelayMs));
-            requestCount = 0; // Reset the request count
-        }
-
-        let currentBlock = [];
-        let manualBlocks = [];
-
-        for (let day of calendarData.data.days) {
-            if (day.blocks.m) {
-                // If the day is manually blocked, add it to the current block
-                currentBlock.push(day);
-            } else if (currentBlock.length > 0) {
-                // If the day is not manually blocked and there is a current block, add the current block to manualBlocks
-                // THIS IS A MEGA PROBLEM
-                const formattedBlocks = formatBlock(currentBlock, listingId, allListings);
-                allManualBlocks = allManualBlocks.concat(formattedBlocks);
-                // Start a new block
-                currentBlock = [];
-            }
-        }
-        
-        // If there is a current block at the end of the days, add it to manualBlocks
-        if (currentBlock.length > 0) {
-            const formattedBlocks = formatBlock(currentBlock, listingId, allListings);
-            allManualBlocks = allManualBlocks.concat(formattedBlocks);
-        }
-        
-
-        allManualBlocks = allManualBlocks.concat(manualBlocks);
-    }
+   const days = calendarData.data.days; // Retrieve days array directly
+   for (let day of days) { // iterate over days
+     if (day.blocks.m) { // if manual block is true
+       // directly push the simplified object to allManualBlocks
+       allManualBlocks.push({
+         id: `${day.listingId}_${day.date}`,
+         listingId: day.listingId,
+         date: day.date,
+         nickname: allListings[day.listingId],
+         note: day.note ? day.note : ""
+       });
+     }
+   }
+  //  console.log('First 3 manually blocked objects', JSON.stringify(allManualBlocks.slice(0, 3), null, 2));
+  //  await new Promise(resolve => setTimeout(resolve, 10000));
 
     return allManualBlocks;
 };
@@ -556,8 +544,8 @@ const handleReservations = async () => {
 
 const handleBlocks = async () => {
   const auth = new google.auth.GoogleAuth({
-    // keyFile: "credentials.json",
-    keyFile: "/app/google-credentials.json",
+    keyFile: "credentials.json",
+    // keyFile: "/app/google-credentials.json",
     scopes: "https://www.googleapis.com/auth/spreadsheets",
   });
 
@@ -573,7 +561,7 @@ const handleBlocks = async () => {
   const getRows = await googleSheets.spreadsheets.values.get({
     auth,
     spreadsheetId,
-    range: "Sheet2",
+    range: "Sheet6",
   });
 
   // Get existing data
@@ -615,7 +603,7 @@ for (let row of manualBlockData) {
 
   if (existingRow) {
     // If row exists, update the values
-    const range = `Sheet2!A${existingData.indexOf(existingRow) + 1}:F${existingData.indexOf(existingRow) + 1}`;
+    const range = `Sheet6!A${existingData.indexOf(existingRow) + 1}:E${existingData.indexOf(existingRow) + 1}`;
     queue.push({
       operation: "update",
       range,
@@ -641,7 +629,7 @@ for (let row of filteredExistingData) {
 
   if (!manualBlockRow) {
     // If row does not exist in manualBlockData, queue up a clear operation
-    const range = `Sheet2!A${existingData.indexOf(row) + 1}:F${existingData.indexOf(row) + 1}`;
+    const range = `Sheet6!A${existingData.indexOf(row) + 1}:E${existingData.indexOf(row) + 1}`;
     console.log("Queuing clear operation for:", row);
     queue.push({
       operation: "clear",
@@ -651,7 +639,7 @@ for (let row of filteredExistingData) {
 }
 
   // Process the queue with limited requests per minute
-  const maxRequestsPerMinute = 10; // Adjust this value based on the per minute user limit
+  const maxRequestsPerMinute = 60; // Adjust this value based on the per minute user limit
   const delayMs = 1000 * (60 / maxRequestsPerMinute);
 
   for (let i = 0; i < queue.length; i++) {
@@ -662,22 +650,22 @@ for (let row of filteredExistingData) {
       await googleSheets.spreadsheets.values.append({
         auth,
         spreadsheetId,
-        range: "Sheet2",
+        range: "Sheet6",
         valueInputOption: "USER_ENTERED",
         resource: {
           values: request.values,
         },
       });
-    } else if (request.operation === "update") {
-      await googleSheets.spreadsheets.values.update({
-        auth,
-        spreadsheetId,
-        range: request.range,
-        valueInputOption: "USER_ENTERED",
-        resource: {
-          values: request.values,
-        } ,
-      });
+    // } else if (request.operation === "update") {
+    //   await googleSheets.spreadsheets.values.update({
+    //     auth,
+    //     spreadsheetId,
+    //     range: request.range,
+    //     valueInputOption: "USER_ENTERED",
+    //     resource: {
+    //       values: request.values,
+    //     } ,
+    //   });
     } else if (request.operation === "clear") {
       // Clear operation - clear the specified range
       await googleSheets.spreadsheets.values.clear({
