@@ -110,130 +110,7 @@ function getFormattedDate(date) {
   
     return year + '-' + month + '-' + day;
   }
-//   this helper function will create a composite key
-  function generateCompositeKey(listingId, checkIn) {
-    const formattedCheckIn = getFormattedDate(new Date(checkIn));
-    return `${listingId}_${formattedCheckIn}`;
-  }
-// this function takes data gathered from the calendar end point and builds an array of objects so that blocks can be added into the sheets
-function formatBlock(blocksData, listingId, allListings) {
-    // Filter out the dates where blocks.m is false
-    // Shouldn't this be days.blocks.m?
-    // const blockedDates = blocksData.filter(day => day.blocks.m);
-    const blockedDates = blocksData.filter(days => days.blocks.m);
-    
-    // Sort the blocked dates in ascending order
-    blockedDates.sort((a, b) => new Date(a.date) - new Date(b.date));
-    
-    let reservations = [];
-    let checkIn = blockedDates[0].date;
-    let checkOut = blockedDates[0].date;
-    // let manualBlockNote = (blockedDates[0].blockRefs && blockedDates[0].blockRefs.length > 0 && blockedDates[0].blockRefs[0].note) ? blockedDates[0].blockRefs[0].note : "";
-
-
-    // Iterate over the sorted blocked dates
-    for (let i = 1; i < blockedDates.length; i++) {
-        // If the current date is the day after the checkOut date, update checkOut
-        if (new Date(blockedDates[i].date) - new Date(checkOut) === 1000 * 60 * 60 * 24) {
-            checkOut = blockedDates[i].date;
-        } else {
-            // If not, push the previous reservation to the reservations array
-            const compositeKey = generateCompositeKey(listingId, checkIn);
-            console.log("compositeKey", compositeKey);
-
-            reservations.push({
-                id: compositeKey,
-                listingId,
-                checkIn,
-                checkOut,
-                type: 'manualBlock',
-                nickname: allListings[listingId]
-                // manualBlockNote
-            });
-            // Start a new reservation with the current date as checkIn and checkOut
-            checkIn = blockedDates[i].date;
-            checkOut = blockedDates[i].date;
-            // manualBlockNote = (blockedDates[i].blockRefs && blockedDates[i].blockRefs.length > 0 && blockedDates[i].blockRefs[0].note) ? blockedDates[i].blockRefs[0].note : "";
-        }
-    }
-
-    // Push the last reservation to the reservations array
-    const compositeKey = generateCompositeKey(listingId, checkIn);
-    // let lastBlockNote = (blockedDates[blockedDates.length - 1].blockRefs && blockedDates[blockedDates.length - 1].blockRefs.length > 0 && blockedDates[blockedDates.length - 1].blockRefs[0].note) ? blockedDates[blockedDates.length - 1].blockRefs[0].note : "";
-
-    reservations.push({
-        id: compositeKey,
-        listingId,
-        checkIn,
-        checkOut,
-        type: 'manualBlock',
-        nickname: allListings[listingId]
-        // manualBlockNote: lastBlockNote
-    });
-    // console.log('reservations right here', reservations);
-    // console.log('blockedDates', blockedDates[0].blockRefs[0].note);
-    return reservations;
-}
  
-const getReservationDetails = async () => {
-    let reservationDetails = [];
-    const limit = 100;
-    let skip = 0;
-  
-    // Authenticate before making a request
-    // sdk.auth(process.env.MY_TOKEN);
-    // sdk.auth("Bearer " + accessToken);
-    // console.log(accessToken);
-  
-    while (true) {
-      const response = await sdk.getReservations({
-        fields: '_id%20listing.nickname%20checkIn%20checkOut%20confirmationCode%20createdAt%20money.fareAccommodation%20money.fareCleaning%20integration.platform%20guest.fullName%20guest.phone%20status',
-        limit: limit.toString(),
-        skip: skip.toString()
-      });
-  
-      for (let reservation of response.data.results) {
-        reservationDetails.push([
-          reservation._id,
-          reservation.listing.nickname,
-          reservation.checkIn,
-          reservation.checkOut,
-          reservation.confirmationCode,
-          reservation.createdAt,
-          reservation.money.fareAccommodation,
-          reservation.money.fareCleaning,
-          // 'reservation',
-          reservation.status,
-          reservation.integration.platform,
-          reservation.guest.fullName,
-          reservation.guest.phone,
-        ]);
-      }
-  
-      // If the number of results is less than the limit, break the loop
-      if (response.data.results.length < limit) {
-        break;
-      }
-  
-      skip += limit;
-  
-      // Delay the next request
-      await new Promise(resolve => setTimeout(resolve, delayMs));
-  
-      // Increment the request count
-      requestCount++;
-  
-      // Check if the maximum number of requests per minute has been reached
-      if (requestCount === maxRequestsPerMinute) {
-        const remainingDelayMs = 60 * 1000 - delayMs * maxRequestsPerMinute;
-        await new Promise(resolve => setTimeout(resolve, remainingDelayMs));
-        requestCount = 0; // Reset the request count
-      }
-    }
-  
-    return reservationDetails;
-  };
-
   const getListings = async () => {
     let listingIds = [];
     const limit = 100;
@@ -290,8 +167,14 @@ async function getCalendarData(listingIds, startDate, endDate) {
 }
 
 const getManualBlocksData = async () => {
+    // const allListings = await getListings();
+    // const startDate = new Date();
+    // const endDate = new Date();
+    // endDate.setMonth(endDate.getMonth() + 1);
     const allListings = await getListings();
     const startDate = new Date();
+    startDate.setDate(startDate.getDate() - 1);
+    startDate.setHours(23, 59, 59, 999); // Set to the last millisecond of the previous day
     const endDate = new Date();
     endDate.setMonth(endDate.getMonth() + 1);
 
@@ -326,222 +209,6 @@ const getManualBlocksData = async () => {
     return allManualBlocks;
 };
 
-const handleReservations = async () => {
-  const auth = new google.auth.GoogleAuth({
-    // keyFile: "credentials.json",
-    keyFile: "/app/google-credentials.json",
-    scopes: "https://www.googleapis.com/auth/spreadsheets",
-  });
-
-// Everything below is logic that writes to the google sheet
-  // Create client instance for auth
-  const client = await auth.getClient();
-
-  // Instance of Google Sheets API
-  const googleSheets = google.sheets({ version: "v4", auth: client });
-
-  const spreadsheetId = process.env.SPREADSHEET_ID;
-  // Read rows from spreadsheet
-  const getRows = await googleSheets.spreadsheets.values.get({
-      auth,
-      spreadsheetId,
-      range: process.env.RANGE,
-  });
-
-  // Get existing data
-  const existingData = getRows.data.values || [];
-
-  // Get reservation details
-  const reservationDetails = await getReservationDetails();
-
-  // Prepare the queue for write requests
-  const queue = [];
-
-  // Check if each row in reservationDetails already exists in the sheet
-  for (let row of reservationDetails) {
-      const rowIndex = existingData.findIndex(existingRow =>
-          existingRow[0] === row[0] // Assuming the ID is the first element in the row
-      );
-
-      if (rowIndex === -1) {
-          // If ID is not in the sheet, append the row
-          queue.push({
-              operation: "append",
-              values: [row],
-          });
-      } else {
-          // If ID is already in the sheet, update the row
-          queue.push({
-              operation: "update",
-              range: `Sheet1!A${rowIndex + 1}:${String.fromCharCode(65 + row.length)}${rowIndex + 1}`,
-              values: [row],
-          });
-      }
-  }
-
-  // Process the queue with limited requests per minute
-  const maxRequestsPerMinute = 60; // Adjust this value based on the per minute user limit
-  const delayMs = 1000 * (60 / maxRequestsPerMinute);
-
-  for (let i = 0; i < queue.length; i++) {
-      const request = queue[i];
-      if (request.operation === "append") {
-          await googleSheets.spreadsheets.values.append({
-              auth,
-              spreadsheetId,
-              range: "Sheet1",
-              valueInputOption: "USER_ENTERED",
-              resource: {
-                  values: request.values,
-              },
-          });
-      } else if (request.operation === "update") {
-          await googleSheets.spreadsheets.values.update({
-              auth,
-              spreadsheetId,
-              range: request.range,
-              valueInputOption: "USER_ENTERED",
-              resource: {
-                  values: request.values,
-              },
-          });
-      }
-
-      // Delay the next request
-      if (i < queue.length - 1) {
-          await new Promise(resolve => setTimeout(resolve, delayMs));
-      }
-  }
-  console.log("done running handleReservations");
-  return getRows.data;;
-};
-
-// const handleReservations = async () => {
-//   const auth = new google.auth.GoogleAuth({
-//     keyFile: "credentials.json",
-//     // keyFile: "/app/google-credentials.json",
-//     scopes: "https://www.googleapis.com/auth/spreadsheets",
-//   });
-
-//   // Create client instance for auth
-//   const client = await auth.getClient();
-
-//   // Instance of Google Sheets API
-//   const googleSheets = google.sheets({ version: "v4", auth: client });
-
-//   const spreadsheetId = process.env.SPREADSHEET_ID;
-
-//   // Read rows from spreadsheet
-//   const getRows = await googleSheets.spreadsheets.values.get({
-//     auth,
-//     spreadsheetId,
-//     range: process.env.RANGE,
-//   });
-
-//   // Get existing data
-//   const existingData = getRows.data.values || [];
-
-//   // Remove the first row which contains labels
-//   const dataWithoutLabels = existingData.slice(1);
-
-//   // Get reservation IDs from the Google Sheet
-//   const reservationIds = dataWithoutLabels.map(row => row[0]); // Assuming the ID is the first element in the row
-
-//   // Prepare the queue for write requests
-//   const queue = [];
-
-//   // Process each reservation ID
-//   for (let reservationId of reservationIds) {
-//     try {
-//       // Get reservation data using sdk.getReservationsId
-//       const response = await sdk.getReservationsId({
-//         fields: '_id%20listing.nickname%20checkIn%20checkOut%20confirmationCode%20createdAt%20money.fareAccommodation%20money.fareCleaning%20integration.platform%20guest.fullName%20guest.phone%20status',
-//         id: reservationId,
-//       });
-
-//       const reservationData = response.data;
-
-//       // Prepare the row data for update
-//       const rowData = [
-//         reservationData._id,
-//         reservationData.listing.nickname,
-//         reservationData.checkIn,
-//         reservationData.checkOut,
-//         reservationData.confirmationCode,
-//         reservationData.createdAt,
-//         reservationData.money.fareAccommodation,
-//         reservationData.money.fareCleaning,
-//         reservationData.status,
-//         reservationData.integration.platform,
-//         reservationData.guest.fullName,
-//         reservationData.guest.phone,
-//       ];
-
-//       const rowIndex = existingData.findIndex(existingRow =>
-//         existingRow[0] === reservationData._id
-//       );
-
-//       if (rowIndex === -1) {
-//         // If ID is not in the sheet, append the row
-//         queue.push({
-//           operation: "append",
-//           values: [rowData],
-//         });
-//       } else {
-//         // If ID is already in the sheet, update the row
-//         queue.push({
-//           operation: "update",
-//           range: `Sheet1!A${rowIndex + 1}:${String.fromCharCode(65 + rowData.length)}${rowIndex + 1}`,
-//           values: [rowData],
-//         });
-//       }
-
-//       // Delay between API requests to avoid rate limits
-//       await new Promise(resolve => setTimeout(resolve, 1000)); // Adjust the delay as needed
-//     } catch (error) {
-//       console.error(`Failed to retrieve data for reservation ID ${reservationId}`);
-//       console.error(error);
-//     }
-//   }
-
-//   // Process the queue with limited requests per minute
-//   const maxRequestsPerMinute = 60; // Adjust this value based on the per minute user limit
-//   const delayMs = 1000 * (60 / maxRequestsPerMinute);
-
-//   for (let i = 0; i < queue.length; i++) {
-//     const request = queue[i];
-//     if (request.operation === "append") {
-//       await googleSheets.spreadsheets.values.append({
-//         auth,
-//         spreadsheetId,
-//         range: "Sheet1",
-//         valueInputOption: "USER_ENTERED",
-//         resource: {
-//           values: request.values,
-//         },
-//       });
-//     } else if (request.operation === "update") {
-//       await googleSheets.spreadsheets.values.update({
-//         auth,
-//         spreadsheetId,
-//         range: request.range,
-//         valueInputOption: "USER_ENTERED",
-//         resource: {
-//           values: request.values,
-//         },
-//       });
-//     }
-
-//     // Delay the next request
-//     if (i < queue.length - 1) {
-//       await new Promise(resolve => setTimeout(resolve, delayMs));
-//     }
-//   }
-
-//   console.log("Done running handleReservations");
-//   return getRows.data;
-// };
-
 const handleBlocks = async () => {
   const auth = new google.auth.GoogleAuth({
     keyFile: "credentials.json",
@@ -575,12 +242,17 @@ const handleBlocks = async () => {
       // Prepare the queue for write requests
       const queue = [];
 
-      const startDate = new Date();
-      startDate.setHours(0,0,0,0);
+      // const startDate = new Date();
+      // startDate.setHours(0,0,0,0);
       
+      // const endDate = new Date();
+      // endDate.setMonth(endDate.getMonth() + 1);
+      // endDate.setHours(23,59,59,999);  
+      const startDate = new Date();
+      startDate.setDate(startDate.getDate() - 1);
+      startDate.setHours(23, 59, 59, 999);
       const endDate = new Date();
-      endDate.setMonth(endDate.getMonth() + 1);
-      endDate.setHours(23,59,59,999);        
+      endDate.setMonth(endDate.getMonth() + 1);      
 
 // Filter existingData based on the check-in date range
 const filteredExistingData = existingData.filter((row, index) => {
@@ -597,30 +269,47 @@ console.log("startDate", startDate);
 console.log("endDate", endDate);
 console.log("filteredExistingData", filteredExistingData);
 
-// Check if each row in manualBlockData already exists in the filtered existingData
-for (let row of manualBlockData) {
-  const existingRow = filteredExistingData.find((existingRow) => existingRow[0] === row.id);
+// // Check if each row in manualBlockData already exists in the filtered existingData
+// for (let row of manualBlockData) {
+//   const existingRow = filteredExistingData.find((existingRow) => existingRow[0] === row.id);
 
-  if (existingRow) {
-    // If row exists, update the values
-    const range = `Sheet6!A${existingData.indexOf(existingRow) + 1}:E${existingData.indexOf(existingRow) + 1}`;
-    queue.push({
-      operation: "update",
-      range,
-      values: [Object.values(row)],
-    });
-  } else {
-    // If row does not exist, append the values
-    const existingRowWithSameId = existingData.find((existingRow) => existingRow[0] === row.id);
-    if (!existingRowWithSameId) {
-      console.log("Appending row:", row);
-      queue.push({
-        operation: "append",
-        values: [Object.values(row)],
-      });
+//   if (existingRow) {
+//     // If row exists, update the values
+//     const range = `Sheet6!A${existingData.indexOf(existingRow) + 1}:E${existingData.indexOf(existingRow) + 1}`;
+//     queue.push({
+//       operation: "update",
+//       range,
+//       values: [Object.values(row)],
+//     });
+//   } else {
+//     // If row does not exist, append the values
+//     const existingRowWithSameId = existingData.find((existingRow) => existingRow[0] === row.id);
+//     if (!existingRowWithSameId) {
+//       console.log("Appending row:", row);
+//       queue.push({
+//         operation: "append",
+//         values: [Object.values(row)],
+//       });
+//     }
+//   }
+// }
+
+  // Check if each row in manualBlockData already exists in the filtered existingData
+  for (let row of manualBlockData) {
+    const existingRow = filteredExistingData.find((existingRow) => existingRow[0] === row.id);
+
+    if (!existingRow) {
+      // If row does not exist, append the values
+      const existingRowWithSameId = existingData.find((existingRow) => existingRow[0] === row.id);
+      if (!existingRowWithSameId) {
+        console.log("Appending row:", row);
+        queue.push({
+          operation: "append",
+          values: [Object.values(row)],
+        });
+      }
     }
   }
-}
 
 //   clear row logic
 // Check if each row in filteredExistingData is present in manualBlockData
